@@ -1,0 +1,115 @@
+import processing.serial.*;
+Serial myPort;
+String data = "";
+int angle = 0;
+int distance = 0;
+
+void setup() {
+  size(900, 600);
+  smooth();
+  myPort = new Serial(this, "COM3", 9600);  // Ganti sesuai port Arduino kamu
+}
+
+void draw() {
+  fill(0, 60);  // efek fading
+  noStroke();
+  rect(0, 0, width, height);
+
+  drawRadarGrid();
+  drawRadarSweep();
+  drawTextInfo();
+}
+
+// ---------------- Radar Grid ----------------
+void drawRadarGrid() {
+  pushMatrix();
+  translate(width/2, height);
+  stroke(0, 255, 0, 150);
+  noFill();
+
+  // Lingkaran jarak
+  for (int r = 100; r <= 400; r += 100) {
+    ellipse(0, 0, r*2, r*2);
+  }
+
+  // Garis sudut
+  for (int a = 0; a <= 180; a += 30) {
+    float x = cos(radians(a)) * 400;
+    float y = -sin(radians(a)) * 400;
+    line(0, 0, x, y);
+  }
+
+  // Label jarak
+  fill(0, 255, 0);
+  textSize(12);
+  for (int r = 100; r <= 400; r += 100) {
+    text(r/4 + " cm", 10, -r + 20);
+  }
+  popMatrix();
+}
+
+// ---------------- Radar Sweep ----------------
+void drawRadarSweep() {
+  pushMatrix();
+  translate(width/2, height);
+
+  // Deteksi objek: kalau jarak < 40 cm, sapuan jadi merah
+  boolean objectDetected = (distance > 0 && distance < 40);
+
+  // Warna sapuan: hijau normal, merah kalau ada objek
+  color sweepColor = objectDetected ? color(255, 0, 0) : color(0, 255, 0);
+
+  // Efek sapuan gradasi
+  for (int i = 0; i < 60; i++) {
+    float a = radians(angle - i);
+    float x = cos(a) * 400;
+    float y = -sin(a) * 400;
+    stroke(sweepColor, 255 - i*4);
+    line(0, 0, x, y);
+  }
+
+  // Area "merah" di sekitar objek (bentuk kipas)
+  if (objectDetected) {
+    float a = radians(angle);
+    float distPix = distance * 4;
+    noStroke();
+    fill(255, 0, 0, 150);
+    beginShape();
+    vertex(0, 0);
+    vertex(cos(a - radians(3)) * distPix, -sin(a - radians(3)) * distPix);
+    vertex(cos(a + radians(3)) * distPix, -sin(a + radians(3)) * distPix);
+    endShape(CLOSE);
+  }
+
+  popMatrix();
+}
+
+// ---------------- Text Info ----------------
+void drawTextInfo() {
+  fill(0, 255, 0);
+  textSize(18);
+  textAlign(LEFT);
+
+  if (distance < 40 && distance > 0) {
+    fill(255, 0, 0);
+    text("⚠ Object Detected!", 20, height - 80);
+  }
+
+  fill(0, 255, 0);
+  text("Object: " + (distance < 40 ? "Detected" : "None"), 20, height - 50);
+  text("Angle: " + angle + " °", 300, height - 50);
+  text("Distance: " + distance + " cm", 500, height - 50);
+}
+
+// ---------------- Serial Event ----------------
+void serialEvent(Serial p) {
+  data = p.readStringUntil('\n');
+  if (data != null) {
+    data = trim(data);
+    String[] values = split(data, ',');
+    if (values.length == 2) {
+      angle = int(values[0]);
+      distance = int(values[1]);
+    }
+  }
+}
